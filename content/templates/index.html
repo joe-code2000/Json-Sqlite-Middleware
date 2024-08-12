@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Json-SQLite-Middleware</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            height: 100vh;
+        }
+
+        main {
+            width: 100%;
+            height: 100%;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-evenly;
+        }
+
+        main section {
+            height: 100%;
+        }
+
+        #user_container {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+
+        .user {
+            padding: 1rem;
+            margin: 0rem 0.5rem;
+            background-color: #f6f6f6;
+            border-radius: 0.5rem;
+        }
+
+        .user .user_info_container {
+            padding: 0.25rem 0;
+        }
+
+        #user_form_container {
+            width: 30%;
+            padding: 1rem;
+            margin: auto;
+            box-shadow: 1px 3px 3px #21213220;
+        }
+
+        form .user_form_input_container {
+            margin: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        form input {
+            padding: 0.75rem;
+            background-color: #efefef;
+            border-radius: 0.5rem;
+            border: none;
+            outline: none;
+        }
+
+        form select {
+            padding: 0.5rem;
+            background-color: #efefef;
+            border-radius: 0.75rem;
+            border: none;
+            outline: none;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <section id="top_section">
+            <h3>Users (<span id="user_count"></span>)</h3>
+            <div id="user_container">
+                <!-- <div class="user">
+                    <div class="user_info_container">
+                        <p>Name: Joel</p>
+                    </div>
+                    <div class="user_info_container">
+                        <p>Age: 24</p>
+                    </div>
+                    <div class="user_info_container">
+                        <p>Gender: Male</p>
+                    </div>
+                    <button>Delete</button>
+                </div> -->
+            </div>
+        </section>
+        <section id="bottom_section">
+            <div id="user_form_container">
+                <h3>Enter User Details</h3>
+                <form id="user_form" action="" method="post">
+                    <div class="user_form_input_container">
+                        <label for="name">Name:</label>
+                        <input id="input_name" type="text" name="name" placeholder="name" required>
+                    </div>
+                    <div class="user_form_input_container">
+                        <label for="age">Age:</label>
+                        <input id="input_age" type="number" name="age" min="0" max="100" value="1">
+                    </div>
+                    <div class="user_form_input_container">
+                        <label for="gender">Gender</label>
+                        <select name="gender" id="select_gender">
+                            <option value="0">Male</option>
+                            <option value="1">Female</option>
+                        </select>
+                    </div>
+                    <div class="user_form_input_container">
+                        <button id="user_form_submit">Submit</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+    </main>
+</body>
+<script>
+
+    const xml_req = (method, url, body, json = false) => {
+
+        const xhr = new XMLHttpRequest()
+
+        try {
+            xhr.open(method.toUpperCase(), url, false)
+            xhr.setRequestHeader('Access-Control-Allow-Origin', '*');
+            xhr.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+            xhr.setRequestHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+            xhr.setRequestHeader('Access-Control-Allow-Headers', 'Content-Type');
+            body ? xhr.send(body) : xhr.send()
+        } catch (error) {
+            throw error;
+        }
+
+        return json ? JSON.parse(xhr.responseText) : xhr
+    }
+
+    const user_count = document.querySelector("#user_count");
+    const user_container = document.querySelector("#user_container");
+    const parser = new DOMParser();
+
+    const serialize_user = (user = {}) => {
+        const gender = user["gender"] == 0 ? "Male" : "Female";
+        let content = `
+                <div class="user">
+                    <div class="user_info_container">
+                        <p>Name: ${user["name"]}</p>
+                    </div>
+                    <div class="user_info_container">
+                        <p>Age: ${user["age"]}</p>
+                    </div>
+                    <div class="user_info_container">
+                        <p>Gender: Male</p>
+                    </div>
+                    <button>Delete</button>
+                </div>
+            `
+
+        let parsedContent = parser.parseFromString(content, "text/html");
+        let userElement = parsedContent.querySelector(".user");
+
+        const deleteBtn = userElement.querySelector("button");
+
+        deleteBtn.onclick = async (e) => {
+            await xml_req("DELETE", "/collection/users", JSON.stringify({ "id": user["id"] }), true)
+            await populate_users(xml_req("GET", "/collection/users", null, true)["msg"]);
+            e.preventDefault();
+        }
+        return userElement;
+    }
+
+    const populate_users = (users = []) => {
+        user_container.innerHTML = "";
+
+        let users_array = [];
+
+        for (let i = 0; i < users.length; i++) {
+            users_array.push(serialize_user(users[i]));
+        }
+
+        users_array.forEach(user => {
+            user_container.appendChild(user);
+        });
+
+        user_count.innerText = `${users_array.length}`
+    }
+
+    let users = xml_req("GET", "/collection/users", null, true);
+
+    populate_users(users["msg"])
+
+    const user_form = document.querySelector("#user_form");
+    const input_name = user_form.querySelector("#input_name");
+    const input_age = user_form.querySelector("#input_age");
+    const select_gender = user_form.querySelector("#select_gender");
+    const user_form_submit = user_form.querySelector("#user_form_submit");
+
+    user_form.onsubmit = (e) => {
+        e.preventDefault();
+    }
+
+    user_form_submit.onclick = (e) => {
+        const name = input_name.value.trim();
+
+        const data = {
+            "name": name,
+            "age": parseInt(input_age.value.trim()),
+            "gender": parseInt(select_gender.value.trim()),
+        }
+
+        if (name == "") {
+            input_name.focus();
+            return;
+        }
+
+        fetch('/collection/users', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+            .then(data => {
+                populate_users(xml_req("GET", "/collection/users", null, true)["msg"]);
+            })
+            .catch((error) => {
+                console.error('Error:', error); // Handle errors
+            });
+
+
+
+    }
+
+</script>
+
+</html>
